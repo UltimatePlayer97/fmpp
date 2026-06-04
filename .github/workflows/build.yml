@@ -1,0 +1,115 @@
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+    tags:
+      - "v*"
+  pull_request:
+
+jobs:
+  build-and-package:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: fmpp-linux-x64
+            binary_src: build/fmpp
+            binary_dest: fmpp-linux-x64
+          - os: macos-latest
+            artifact_name: fmpp-macos-universal
+            binary_src: build/fmpp
+            binary_dest: fmpp-macos-universal
+          - os: windows-latest
+            artifact_name: fmpp-windows-x64
+            binary_src: build/fmpp.exe
+            binary_dest: fmpp-windows-x64.exe
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Set Short SHA
+        shell: bash
+        run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Install Linux Dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build python3-pip
+          pip3 install meson
+
+      - name: Install macOS Dependencies
+        if: matrix.os == 'macos-latest'
+        run: brew install meson ninja
+
+      - name: Install Windows Dependencies
+        if: matrix.os == 'windows-latest'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-meson
+            mingw-w64-ucrt-x86_64-ninja
+
+      - name: Configure and Compile (Linux / macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          meson setup build --buildtype=release
+          meson compile -C build
+
+      - name: Configure and Compile (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: msys2 {0}
+        run: |
+          meson setup build --buildtype=release
+          meson compile -C build
+
+      - name: Package Artifacts
+        shell: bash
+        run: |
+          mkdir dist
+          cp ${{ matrix.binary_src }} dist/${{ matrix.binary_dest }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.artifact_name }}-${{ env.SHORT_SHA }}
+          path: dist/*
+
+  release:
+    needs: [build-and-package]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Set Short SHA
+        run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - name: Create GitHub Draft Release
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          draft: true
+          files: |
+            release/fmpp-linux-x64
+            release/fmpp-macos-universal
+            release/fmpp-windows-x64.exe
+          name: File Manager++ ${{ github.ref_name }}
+          fail_on_unmatched_files: true
