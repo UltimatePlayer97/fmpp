@@ -9,7 +9,11 @@ ftxui_screen_dep = dependency('ftxui-screen')
 ftxui_dom_dep = dependency('ftxui-dom')
 ftxui_comp_dep = dependency('ftxui-component')
 
-sources = files('src/main.cpp')
+sources = files(
+    'src/file_system.cpp',
+    'src/main.cpp',
+    'src/ui/components.cpp',
+)
 
 executable(
     'fmpp',
