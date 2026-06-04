@@ -1,5 +1,4 @@
 #include "ftxui/component/component_options.hpp"
-#include "ftxui/screen/color.hpp"
 #include <ftxui/dom/elements.hpp>
 #include <ftxui/component/screen_interactive.hpp>
 #include <ftxui/component/component.hpp>
@@ -25,27 +24,33 @@ int main() {
 
     int selected = 0;
     bool should_run = true;
+    bool show_escape_menu = false;
 
-    filesystem::path current_dir = std::filesystem::current_path();
+    std::filesystem::path current_dir = std::filesystem::current_path();
 
-    while (should_run) {
+    auto update_directory = [&]() {
         items.clear();
         display_names.clear();
 
         if (current_dir.has_parent_path() && current_dir != current_dir.root_path()) {
             FileItem parent_item;
+            parent_item.name = "../";
             parent_item.path = current_dir.parent_path();
             parent_item.isDirectory = true;
-            parent_item.name = "../";
             items.push_back(parent_item);
-            display_names.push_back(parent_item.name);
+            display_names.push_back("../");
         }
 
         for (const auto& entry : filesystem::directory_iterator(current_dir)) {
+            string filename = entry.path().filename().string();
+            if (filename == "." || filename == "..") {
+                continue;
+            }
+
             FileItem item;
             item.path = entry.path();
             item.isDirectory = entry.is_directory();
-            item.name = item.path.filename().string();
+            item.name = filename;
             items.push_back(item);
 
             string display = item.name;
@@ -54,35 +59,59 @@ int main() {
             }
             display_names.push_back(display);
         }
+    };
 
-        MenuOption option;
-        option.on_enter = [&]() {
-            if (selected >= 0 && selected < items.size()) {
-                if (items[selected].isDirectory) {
-                    current_dir = items[selected].path;
-                    screen.ExitLoopClosure()();
-                } else {
-                    should_run = false;
-                    screen.ExitLoopClosure()();
-                }
+    update_directory();
+
+    MenuOption option;
+    option.on_enter = [&]() {
+        if (selected >= 0 && selected < static_cast<int>(items.size())) {
+            if (items[selected].isDirectory) {
+                current_dir = items[selected].path;
+                update_directory();
+                selected = 0;
             }
-        };
+        }
+    };
 
-        auto menu = Menu(&display_names, &selected, option);
+    auto menu = Menu(&display_names, &selected, option);
 
-        auto renderer = Renderer(menu, [&]() {
-            return  window(
-                text("File Manager++ | " + current_dir.string()) | bold | color(Color::Blue),
-                menu->Render());
-        });
-        screen.Loop(renderer);
+    int escape_selected = 0;
+    vector<string> escape_entries = {"Quit"};
+    MenuOption escape_option;
+    escape_option.on_enter = [&]() {
+        if (escape_selected == 0) {
+            should_run = false;
+            screen.ExitLoopClosure()();
+        }
+    };
+    auto escape_menu = Menu(&escape_entries, &escape_selected, escape_option);
 
-        if (!should_run) {
-            break;
+    auto renderer = Renderer(Container::Tab({menu, escape_menu}, (int*)&show_escape_menu), [&]() {
+        auto base_window = window(
+            text(" File Manager++ | " + current_dir.string()) | bold | color(Color::Blue),
+            menu->Render()
+        );
+
+        if (show_escape_menu) {
+            return dbox({
+                base_window,
+                window(text(" Menu ") | bold | color(Color::Red), escape_menu->Render()) | clear_under | center
+            });
         }
 
-        selected = 0;
-    }
+        return base_window;
+    });
+
+    auto final_component = CatchEvent(renderer, [&](Event event) {
+        if (event == Event::Escape) {
+            show_escape_menu = !show_escape_menu;
+            return true;
+        }
+        return false;
+    });
+
+    screen.Loop(final_component);
 
     return 0;
 }
