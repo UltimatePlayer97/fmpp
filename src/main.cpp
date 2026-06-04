@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <string>
 #include <vector>
+#include <cstdlib>
 
 using namespace std;
 using namespace ftxui;
@@ -26,7 +27,18 @@ int main() {
     bool should_run = true;
     bool show_escape_menu = false;
 
-    std::filesystem::path current_dir = std::filesystem::current_path();
+    string home_env = getenv("HOME") ? getenv("HOME") : ".";
+    filesystem::path home_dir = filesystem::absolute(home_env);
+    filesystem::path current_dir = home_dir;
+
+    int sidebar_selected = 0;
+    vector<string> sidebar_entries = {"Home", "Documents", "Downloads", "Desktop"};
+    vector<filesystem::path> sidebar_paths = {
+        home_dir,
+        home_dir / "Documents",
+        home_dir / "Downloads",
+        home_dir / "Desktop"
+    };
 
     auto update_directory = [&]() {
         items.clear();
@@ -41,27 +53,41 @@ int main() {
             display_names.push_back("../");
         }
 
-        for (const auto& entry : filesystem::directory_iterator(current_dir)) {
-            string filename = entry.path().filename().string();
-            if (filename == "." || filename == "..") {
-                continue;
-            }
+        try {
+            for (const auto& entry : filesystem::directory_iterator(current_dir)) {
+                string filename = entry.path().filename().string();
+                if (filename == "." || filename == "..") {
+                    continue;
+                }
 
-            FileItem item;
-            item.path = entry.path();
-            item.isDirectory = entry.is_directory();
-            item.name = filename;
-            items.push_back(item);
+                FileItem item;
+                item.path = entry.path();
+                item.isDirectory = entry.is_directory();
+                item.name = filename;
+                items.push_back(item);
 
-            string display = item.name;
-            if (item.isDirectory) {
-                display += "/";
+                string display = item.name;
+                if (item.isDirectory) {
+                    display += "/";
+                }
+                display_names.push_back(display);
             }
-            display_names.push_back(display);
-        }
+        } catch (...) {}
     };
 
     update_directory();
+
+    MenuOption sidebar_option;
+    sidebar_option.on_enter = [&]() {
+        if (sidebar_selected >= 0 && sidebar_selected < static_cast<int>(sidebar_paths.size())) {
+            if (filesystem::exists(sidebar_paths[sidebar_selected])) {
+                current_dir = sidebar_paths[sidebar_selected];
+                update_directory();
+                selected = 0;
+            }
+        }
+    };
+    auto sidebar_menu = Menu(&sidebar_entries, &sidebar_selected, sidebar_option);
 
     MenuOption option;
     option.on_enter = [&]() {
@@ -73,7 +99,6 @@ int main() {
             }
         }
     };
-
     auto menu = Menu(&display_names, &selected, option);
 
     int escape_selected = 0;
@@ -87,10 +112,31 @@ int main() {
     };
     auto escape_menu = Menu(&escape_entries, &escape_selected, escape_option);
 
-    auto renderer = Renderer(Container::Tab({menu, escape_menu}, (int*)&show_escape_menu), [&]() {
+    auto main_split = Container::Horizontal({
+        sidebar_menu,
+        menu
+    });
+
+    auto main_tabs = Container::Tab({main_split, escape_menu}, (int*)&show_escape_menu);
+
+    auto renderer = Renderer(main_tabs, [&]() {
+        auto panel_layout = hbox({
+            vbox({
+                text(" Places ") | bold | color(Color::Cyan),
+                separator(),
+                sidebar_menu->Render()
+            }) | size(WIDTH, EQUAL, 18),
+            separator(),
+            vbox({
+                text(" Content ") | bold | color(Color::Cyan),
+                separator(),
+                menu->Render() | vscroll_indicator | frame | flex
+            }) | flex
+        });
+
         auto base_window = window(
             text(" File Manager++ | " + current_dir.string()) | bold | color(Color::Blue),
-            menu->Render()
+            panel_layout
         );
 
         if (show_escape_menu) {
