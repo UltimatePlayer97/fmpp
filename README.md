@@ -9,6 +9,12 @@
 A terminal file manager built to make navigation instant and distraction-free. No mouse required.
  
 ## Quick Start
+### Prerequisites
+
+- a [Nerdfont](https://www.nerdfonts.com/) installed on your system/ terminal to ensure icons are rendered
+
+
+### Download
 Head over to [Releases](https://github.com/UltimatePlayer97/fmpp/releases) to download now!
  
 ## Features
