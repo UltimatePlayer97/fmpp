@@ -2,7 +2,10 @@
 #include "components/breadcrumb.hpp"
 #include "components/sidebar.hpp"
 #include "components/content_view.hpp"
+#include "ftxui/screen/color.hpp"
 #include <ftxui/dom/elements.hpp>
+#include <ftxui/component/component.hpp>
+#include <memory>
 
 using namespace std;
 using namespace ftxui;
@@ -12,7 +15,7 @@ UIComponents::UIComponents(ScreenInteractive& screen, FileSystemEngine& engine)
 
     breadcrumb_bar_ = make_unique<BreadcrumbComponent>();
 
-    sidebar_panel_ = make_unique<SidebarComponent>([this](const string& path) {
+    sidebar_panel_ = make_unique<SidebarComponent>(engine_.get_sidebar_paths(), [this](const string& path) {
         engine_.change_directory(path);
         content_view_->ResetSelection();
     });
@@ -33,15 +36,41 @@ UIComponents::UIComponents(ScreenInteractive& screen, FileSystemEngine& engine)
 UIComponents::~UIComponents() = default;
 
 Component UIComponents::build_ui_tree() {
-    auto container = Container::Horizontal({
+    main_container_ = Container::Horizontal({
         sidebar_panel_->GetControl(),
         content_view_->GetControl()
     });
 
-    return Renderer(container, [this]() {
+    auto resume_button = Button("Resume", [this]() {
+        show_escape_menu_ = false;
+    });
+
+    auto quit_button = Button("Quit Application", [this]() {
+        screen_.ExitLoopClosure()();
+    });
+
+    auto escape_menu_buttons = Container::Vertical({
+        resume_button,
+        quit_button
+    });
+
+    auto dynamic_focus_switcher = Container::Tab(
+        {main_container_, escape_menu_buttons},
+        &show_escape_menu_
+    );
+
+    auto master_event_handler = CatchEvent(dynamic_focus_switcher, [this](Event event) {
+        if (event == Event::Escape) {
+            show_escape_menu_ = !show_escape_menu_;
+            return true;
+        }
+        return false;
+    });
+
+    return Renderer(master_event_handler, [this, resume_button, quit_button]() {
         breadcrumb_bar_->UpdatePath(engine_.get_current_dir_string());
 
-        return vbox({
+        auto main_view = vbox({
             breadcrumb_bar_->Render(),
             separator(),
             hbox({
@@ -50,9 +79,7 @@ Component UIComponents::build_ui_tree() {
                     separator(),
                     sidebar_panel_->GetControl()->Render() | vscroll_indicator | frame
                 }) | size(WIDTH, EQUAL, 18),
-
                 separator(),
-
                 vbox({
                     text(" Content ") | bold,
                     separator(),
@@ -60,5 +87,26 @@ Component UIComponents::build_ui_tree() {
                 }) | flex
             }) | flex
         }) | flex;
+
+        if (show_escape_menu_) {
+            return dbox({
+                main_view,
+                vbox({
+                    text(" ESCAPE MENU ") | bold | center,
+                    separator(),
+                    vbox({
+                        resume_button->Render() | center,
+                        text(""),
+                        quit_button->Render() | center | color(Color::RedLight)
+                    }),
+                }) | bgcolor(Color::Black)
+                   | border
+                   | size(WIDTH, EQUAL, 40)
+                   | size(HEIGHT, EQUAL, 11)
+                   | center
+            });
+        }
+
+        return main_view;
     });
 }
