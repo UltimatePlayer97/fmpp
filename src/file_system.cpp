@@ -1,4 +1,5 @@
 #include "file_system.hpp"
+#include "ui/components/icon/icons.hpp"
 
 FileSystemEngine::FileSystemEngine() {
     std::string home_env = getenv("HOME") ? getenv("HOME") : ".";
@@ -30,7 +31,9 @@ void FileSystemEngine::update_directory() {
         parent_item.path = current_dir.parent_path();
         parent_item.isDirectory = true;
         items.push_back(parent_item);
-        display_names.push_back("../");
+
+        std::string icon = std::string(get_icon_for_item(parent_item.path, true));
+        display_names.push_back(icon + " " + parent_item.name);
     }
 
     try {
@@ -46,7 +49,9 @@ void FileSystemEngine::update_directory() {
             item.name = filename;
             items.push_back(item);
 
-            std::string display = item.name;
+            std::string icon = std::string(get_icon_for_item(item.path, item.isDirectory));
+            std::string display = icon + " " + item.name;
+
             if (item.isDirectory) {
                 display += "/";
             }
