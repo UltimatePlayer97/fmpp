@@ -42,8 +42,8 @@ Component UIComponents::build_ui_tree() {
             auto disk = engine_.get_root_disk_stats();
             int rounded_percent = static_cast<int>(disk.used_percentage);
 
-            std::string title_text = " 󰋊  Devices (" + std::to_string(rounded_percent) + "%)";
-            std::string size_text = " " + disk.used_str + " / " + disk.total_str;
+            string title_text = " 󰋊  Devices (" + std::to_string(rounded_percent) + "%)";
+            string size_text = " " + disk.used_str + " / " + disk.total_str;
 
             float gauge_value = static_cast<float>(disk.used_percentage / 100.0);
             auto progress_bar = gauge(gauge_value);
@@ -115,25 +115,29 @@ Component UIComponents::build_ui_tree() {
 
     return Renderer(master_event_handler, [this, resume_button, quit_button, disk_click_handler]() {
         breadcrumb_bar_->UpdatePath(engine_.get_current_dir_string());
+
+        auto left_column_layout = vbox({
+            text(" Places ") | bold,
+            separator(),
+            sidebar_panel_->GetControl()->Render() | vscroll_indicator | frame | flex,
+            filler(),
+            separator(),
+            disk_click_handler->Render()
+        }) | size(WIDTH, EQUAL, 24);
+
+        auto right_column_layout = vbox({
+            text(" Content ") | bold,
+            separator(),
+            content_view_->GetControl()->Render() | vscroll_indicator | frame | flex
+        }) | flex;
+
         auto main_view = vbox({
             breadcrumb_bar_->Render(),
             separator(),
             hbox({
-                vbox({
-                    text(" Places ") | bold,
-                    separator(),
-                    sidebar_panel_->GetControl()->Render() | vscroll_indicator | frame,
-
-                    filler(),
-                    separator(),
-                    disk_click_handler->Render()
-                }) | size(WIDTH, EQUAL, 24),
+                left_column_layout,
                 separator(),
-                vbox({
-                    text(" Content ") | bold,
-                    separator(),
-                    content_view_->GetControl()->Render() | vscroll_indicator | frame
-                }) | flex
+                right_column_layout
             }) | flex
         }) | flex;
 

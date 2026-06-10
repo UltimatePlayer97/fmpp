@@ -8,7 +8,7 @@ int main() {
     UIComponents ui(screen, engine);
     auto app_tree = ui.build_ui_tree();
 
-    screen.Loop(app_tree);
+    screen.Loop(app_tree | xflex | yflex);
 
     return 0;
 }
