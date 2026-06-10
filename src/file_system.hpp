@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -15,19 +14,6 @@ struct FileItem {
 
 class FileSystemEngine {
 public:
-
-    struct DiskStats {
-        uint64_t total_bytes;
-        uint64_t available_bytes;
-        double used_percentage;
-        bool is_critical;
-
-        string total_str;
-        string used_str;
-    };
-
-    DiskStats get_root_disk_stats() const;
-
     FileSystemEngine();
 
     void update_directory();
