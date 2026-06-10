@@ -127,12 +127,12 @@ Component UIComponents::build_ui_tree() {
                     filler(),
                     separator(),
                     disk_click_handler->Render()
-                }) | size(WIDTH, EQUAL, 24) | flex,
+                }) | size(WIDTH, EQUAL, 24),
                 separator(),
                 vbox({
                     text(" Content ") | bold,
                     separator(),
-                    content_view_->GetControl()->Render() | vscroll_indicator | frame | flex
+                    content_view_->GetControl()->Render() | vscroll_indicator | frame
                 }) | flex
             }) | flex
         }) | flex;
