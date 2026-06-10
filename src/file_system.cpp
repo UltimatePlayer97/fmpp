@@ -1,6 +1,7 @@
 #include "file_system.hpp"
 #include "ui/components/icon/icons.hpp"
 #include "utils/formatter.hpp"
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
@@ -41,7 +42,6 @@ FileSystemEngine::DiskStats FileSystemEngine::get_root_disk_stats() const {
         stats.total_str = Utils::format_bytes(stats.total_bytes);
         stats.used_str = Utils::format_bytes(used_bytes);
     } catch (...) {
-        // Fallback defaults are already set above in case this fails
     }
     return stats;
 }
@@ -66,6 +66,8 @@ void FileSystemEngine::update_directory() {
         display_names.push_back(icon + " " + parent_item.name);
     }
 
+    vector<FileItem> contents;
+
     try {
         for (const auto& entry : filesystem::directory_iterator(current_dir)) {
             string filename = entry.path().filename().string();
@@ -77,15 +79,28 @@ void FileSystemEngine::update_directory() {
             item.path = entry.path();
             item.isDirectory = entry.is_directory();
             item.name = filename;
-            items.push_back(item);
-
-            string icon = string(get_icon_for_item(item.path, item.isDirectory));
-            string display = icon + " " + item.name;
-
-            if (item.isDirectory) {
-                display += "/";
-            }
-            display_names.push_back(display);
+            contents.push_back(item);
         }
-    } catch (...) {}
+    } catch (...) {
+        // Fallback for permission errors or unreadable system folders etc.
+    }
+
+    sort(contents.begin(), contents.end(), [](const FileItem& a, const FileItem& b) {
+        if (a.isDirectory != b.isDirectory) {
+            return a.isDirectory;
+        }
+        return a.name < b.name;
+    });
+
+    for (const auto& item : contents) {
+        items.push_back(item);
+
+        string icon = string(get_icon_for_item(item.path, item.isDirectory));
+        string display = icon + " " + item.name;
+
+        if (item.isDirectory) {
+            display += "/";
+        }
+        display_names.push_back(display);
+    }
 }
